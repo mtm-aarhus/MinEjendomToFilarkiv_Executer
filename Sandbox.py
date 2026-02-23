@@ -68,7 +68,7 @@ def upload_to_filarkiv_NoneSensitive(FilarkivURL, FilarkivCaseID, Filarkiv_acces
     
     FileName += extension
     #orchestrator_connection.log_info(f"Anvender følgende DocumentID: {Filarkiv_DocumentID}")
-    response = requests.post(f"{FilarkivURL}/Files", headers={"Authorization": f"Bearer {Filarkiv_access_token}", "Content-Type": "application/json"}, json={"documentId": Filarkiv_DocumentID, "fileName": FileName, "sequenceNumber": 0,"fileReference":f"minejendom:{CaseId}-{DocumentId}-{Documenttype}", "mimeType": mime_type})
+    response = requests.post(f"{FilarkivURL}/Files", headers={"Authorization": f"Bearer {Filarkiv_access_token}", "Content-Type": "application/json"}, json={"documentId": Filarkiv_DocumentID, "fileName": FileName, "sequenceNumber": 1,"fileReference":f"minejendom:{CaseId}-{DocumentId}-{Documenttype}", "mimeType": mime_type})
     if response.status_code in [200, 201]:
         FileID = response.json().get('id')
         #orchestrator_connection.log_info(f"FileID: {FileID}")
@@ -133,7 +133,7 @@ def upload_to_filarkiv_Sensitive(FilarkivURL, FilarkivCaseID, Filarkiv_access_to
     }.get(extension, "application/octet-stream")
     FileName += extension
     #orchestrator_connection.log_info(f"Anvender følgende DocumentID: {Filarkiv_DocumentID}")
-    response = requests.post(f"{FilarkivURL}/Files", headers={"Authorization": f"Bearer {Filarkiv_access_token}", "Content-Type": "application/json"}, json={"documentId": Filarkiv_DocumentID, "fileName": FileName, "sequenceNumber": 0,"fileReference":f"minejendom:{CaseId}-{DocumentId}-{Documenttype}", "mimeType": mime_type})
+    response = requests.post(f"{FilarkivURL}/Files", headers={"Authorization": f"Bearer {Filarkiv_access_token}", "Content-Type": "application/json"}, json={"documentId": Filarkiv_DocumentID, "fileName": FileName, "sequenceNumber": 1,"fileReference":f"minejendom:{CaseId}-{DocumentId}-{Documenttype}", "mimeType": mime_type})
     if response.status_code in [200, 201]:
         FileID = response.json().get('id')
         #orchestrator_connection.log_info(f"FileID: {FileID}")
@@ -165,6 +165,41 @@ def upload_to_filarkiv_Sensitive(FilarkivURL, FilarkivCaseID, Filarkiv_access_to
     return True
 
 
+def is_document_uploaded(FilarkivURL,FilarkivCaseId, FileName, Filarkiv_access_token):
+
+    url = f"{FilarkivURL}/Files?caseId={FilarkivCaseId}&orderBy=documentDate&noPaging=true&skipTotalCount=false&pageSize=500"
+
+    headers = {
+        "Authorization": f"Bearer {Filarkiv_access_token}"
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+
+        files = response.json()
+
+        print(f"Looking for: {FileName}")
+
+        for file in files:
+            api_filename = file.get("fileName", "")
+            print(f"- {api_filename}")
+
+            # Remove extension from API filename
+            api_name_without_ext = os.path.splitext(api_filename)[0].strip().lower()
+
+            if api_name_without_ext == FileName:
+                print("\n✅ Match found:")
+                print(json.dumps(file, indent=4))
+                return True
+
+        print("\n❌ No match found.")
+        return False
+
+    except requests.exceptions.RequestException as e:
+        print(f"API request failed: {e}")
+        return False
+
 # ------ Add basic data ------------------------
 
 
@@ -177,16 +212,16 @@ conversionPossible = False
 
 DocumentNumber = int(FileName.split("-")[-1])
 print(DocumentNumber)  # 0
-Documenttype = 0
+Documenttype = 1
 
 # ---------------- Henter Documentet ----------------------
 
 
 #OBS! Tjek om listen skal opdateres med Ea, inden du oploader
-# List of supported file extensions
+# List of supported file extensions 
 supported_extensions = [
     "bmp", "doc","docx", "gif","heic","heics","heif","heifs", "jpeg",
-    "jpg", "msg","pdf", "png", "psd","tif", "tiff", "txt", 
+    "jpg", "msg","pdf", "png", "psd","tif", "tiff", "txt", "xls", "xlsx", "xlsm", "xlt", "xltx","ods"
 ]
 
 # Check if the input file extension exists in the list
@@ -199,7 +234,13 @@ if CanDocumentBeConverted:
     print("Filen konverteres i Filarkiv")
 
 
-if CanDocumentBeConverted:
+# check if document already is uploaded return true og false
+
+IsdocumentUploaded = is_document_uploaded(FilarkivURL,FilArkivCaseId, FileName, Filarkiv_access_token)
+
+print(f"IsdocumentUploaded is: {IsdocumentUploaded}")
+
+if CanDocumentBeConverted and IsdocumentUploaded == False:
     if securityClassificationLevel == 1:
         print("Document is sensitive")
         success  = upload_to_filarkiv_Sensitive(
@@ -222,3 +263,5 @@ if CanDocumentBeConverted:
     if success:
         #os.remove(FilePath) --- skal ikke fjernes hvis det kan gøres uden at downloade lokalt inden opload.
         print("Documentet er oploaded til Filarkiv")
+else: 
+    print("Dokumentet kan ikke oploades eller er oploaded is forvejen")
