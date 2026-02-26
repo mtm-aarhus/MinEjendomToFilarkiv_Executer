@@ -131,7 +131,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
                 files = [('file', (FileName, file, mime_type))]
                 response = requests.post(url, headers={"Authorization": f"Bearer {Filarkiv_access_token}"}, files=files)
                 if response.status_code in [200, 201]:
-                    orchestrator_connection.log_info("File uploaded successfully.")
+                    print("File uploaded successfully.")
                 else:
                     #orchestrator_connection.log_info(f"Failed to upload file. Status Code: {response.status_code} - deleting file + document")
                     url = f"https://core.filarkiv.dk/api/v1/Files"
@@ -196,7 +196,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
                 files = [('file', (FileName, file, mime_type))]
                 response = requests.post(url, headers={"Authorization": f"Bearer {Filarkiv_access_token}"}, files=files)
                 if response.status_code in [200, 201]:
-                    orchestrator_connection.log_info("File uploaded successfully.")
+                    print("File uploaded successfully.")
                 else:
                     #orchestrator_connection.log_info(f"Failed to upload file. Status Code: {response.status_code} - deleting file + document")
                     url = f"https://core.filarkiv.dk/api/v1/Files"
