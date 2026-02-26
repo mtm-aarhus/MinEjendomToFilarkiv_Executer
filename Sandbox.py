@@ -11,12 +11,16 @@ from datetime import datetime
 import requests
 import uuid
 import re
-
 from GetFilarkivAcessToken import GetFilarkivToken
+
+# ------------------- CONFIG -------------------
+
+SQLITE_PATH = r"C:\Users\az72987\Desktop\minejendom2filarkiv.db"
+conn = sqlite3.connect(SQLITE_PATH)
+cur = conn.cursor()
 
 FilarkivURL = orchestrator_connection.get_constant("FilarkivURL").value
 Filarkiv_access_token = GetFilarkivToken(orchestrator_connection)
-
 # ------- Henter kø-elementer ------------------
 
 DocumentId = "7495621"
@@ -32,7 +36,32 @@ IgnoreCase = 0
 FilePath = "\\\\adm.aarhuskommune.dk\\MTM\\Byggesag\\Byggesag_2016_202X\\2017\\8\\975201\\3189-06\\9438560b-759e-48a5-8dde-65a757c42868.pdf"
 securityClassificationLevel = 0
 
+# ------------------------------------------------
+# SQLite Update Function
+# ------------------------------------------------
+
+def update_sqlite_document(SQLITE_PATH, DocumentId, FilarkivDocumentId, FilarkivFileId, UploadedAt):
+    conn = sqlite3.connect(SQLITE_PATH)
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE MinEjendom_Documents
+        SET FilArkivDocumentId = ?,
+            FilArkivFileId = ?,
+            UploadedAt = ?
+        WHERE Id = ?
+    """, (
+        FilarkivDocumentId,
+        FilarkivFileId,
+        UploadedAt,
+        DocumentId
+    ))
+
+    conn.commit()
+    conn.close()
 # ------ Create document, create file and upload document-----------------------
+
+
 
 def upload_to_filarkiv_NoneSensitive(FilarkivURL, FilarkivCaseID, Filarkiv_access_token, title, file_path, DocumentType, orchestrator_connection,DocumentId,FileName,DocumentNumber,Documenttype):
     Filarkiv_DocumentID = None  # Ensure it is initialized
@@ -97,7 +126,7 @@ def upload_to_filarkiv_NoneSensitive(FilarkivURL, FilarkivCaseID, Filarkiv_acces
                 response = requests.delete(url, headers={"Authorization": f"Bearer {Filarkiv_access_token}", "Content-Type": "application/json"}, data=json.dumps(data))
                 #orchestrator_connection.log_info(f"Document deletion status code: {response.status_code}")
                 return False
-    return True
+    return True, Filarkiv_DocumentID, FileID, DocumentDate
 
 
 def upload_to_filarkiv_Sensitive(FilarkivURL, FilarkivCaseID, Filarkiv_access_token, title, file_path, DocumentType, orchestrator_connection,DocumentId,FileName,DocumentNumber,Documenttype):
@@ -162,7 +191,7 @@ def upload_to_filarkiv_Sensitive(FilarkivURL, FilarkivCaseID, Filarkiv_access_to
                 response = requests.delete(url, headers={"Authorization": f"Bearer {Filarkiv_access_token}", "Content-Type": "application/json"}, data=json.dumps(data))
                 #orchestrator_connection.log_info(f"Document deletion status code: {response.status_code}")
                 return False
-    return True
+    return True, Filarkiv_DocumentID, FileID, DocumentDate
 
 
 def is_document_uploaded(FilarkivURL,FilarkivCaseId, FileName, Filarkiv_access_token):
@@ -191,16 +220,14 @@ def is_document_uploaded(FilarkivURL,FilarkivCaseId, FileName, Filarkiv_access_t
             if api_name_without_ext == FileName:
                 print("\n✅ Match found:")
                 print(json.dumps(file, indent=4))
-                return True
+                return True, file.get("documentId"), file.get("id"),file.get("createdAt")
 
         print("\n❌ No match found.")
-        return False
+        return False, None, None, None
 
     except requests.exceptions.RequestException as e:
         print(f"API request failed: {e}")
-        return False
-
-# ------ Add basic data ------------------------
+        return False, None, None, None
 
 
 # -------------------- Main workflow ----------
@@ -236,32 +263,63 @@ if CanDocumentBeConverted:
 
 # check if document already is uploaded return true og false
 
-IsdocumentUploaded = is_document_uploaded(FilarkivURL,FilArkivCaseId, FileName, Filarkiv_access_token)
+IsdocumentUploaded, filarkiv_document_id, filarkiv_file_id, created_at_from_api = is_document_uploaded(
+    FilarkivURL,
+    FilArkivCaseId,
+    FileName,
+    Filarkiv_access_token
+)
 
 print(f"IsdocumentUploaded is: {IsdocumentUploaded}")
 
-if CanDocumentBeConverted and IsdocumentUploaded == False:
-    if securityClassificationLevel == 1:
-        print("Document is sensitive")
-        success  = upload_to_filarkiv_Sensitive(
-            FilarkivURL, FilArkivCaseId, Filarkiv_access_token,
-            DocumentTitle, FilePath,
-            FileExtension,
-            orchestrator_connection,
-            DocumentId, FileName,DocumentNumber,Documenttype
-        )
+success = False
+document_date = None
+
+if CanDocumentBeConverted:
+
+    if not IsdocumentUploaded:
+
+        if securityClassificationLevel == 1:
+            print("Document is sensitive")
+            success, filarkiv_document_id, filarkiv_file_id, document_date = upload_to_filarkiv_Sensitive(
+                FilarkivURL, FilArkivCaseId, Filarkiv_access_token,
+                DocumentTitle, FilePath,
+                FileExtension,
+                orchestrator_connection,
+                DocumentId, FileName, DocumentNumber, Documenttype
+            )
+        else:
+            print("Document is not sensitive")
+            success, filarkiv_document_id, filarkiv_file_id, document_date = upload_to_filarkiv_NoneSensitive(
+                FilarkivURL, FilArkivCaseId, Filarkiv_access_token,
+                DocumentTitle, FilePath,
+                FileExtension,
+                orchestrator_connection,
+                DocumentId, FileName, DocumentNumber, Documenttype
+            )
+        uploaded_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     else:
-        print("Document is not sensitive")
-        success  = upload_to_filarkiv_NoneSensitive(
-            FilarkivURL, FilArkivCaseId, Filarkiv_access_token,
-            DocumentTitle, FilePath,
-            FileExtension,
-            orchestrator_connection,
-            DocumentId,FileName,DocumentNumber,Documenttype
+        print("Document already exists in Filarkiv.")
+        success = True   # Important: treat as success
+        uploaded_at = datetime.fromisoformat(created_at_from_api.split(".")[0]).strftime("%Y-%m-%d %H:%M:%S")
+
+    # ✅ Update database ONLY if success
+    if success and filarkiv_document_id and filarkiv_file_id:
+
+
+        update_sqlite_document(
+            SQLITE_PATH,
+            DocumentId,
+            filarkiv_document_id,
+            filarkiv_file_id,
+            uploaded_at
         )
 
-    if success:
-        #os.remove(FilePath) --- skal ikke fjernes hvis det kan gøres uden at downloade lokalt inden opload.
-        print("Documentet er oploaded til Filarkiv")
-else: 
-    print("Dokumentet kan ikke oploades eller er oploaded is forvejen")
+        print("SQLite updated successfully.")
+
+    else:
+        print("Upload failed — database NOT updated.")
+
+else:
+    print("Document type not supported — nothing done.")

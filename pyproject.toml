@@ -17,7 +17,10 @@ classifiers = [
 ]
 dependencies = [
     "OpenOrchestrator == 2.*",
-    "Pillow == 10.*",
+    "Pillow == 11.*",
+    "pyodbc == 5.2.0",
+    "pandas == 2.2.3",
+    "requests == 2.32.3"
 ]
 
 [project.optional-dependencies]
