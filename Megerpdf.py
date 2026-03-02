@@ -9,8 +9,8 @@ import tempfile
 # ==============================
 
 SQLITE_PATH = r"C:\Users\az72987\Desktop\minejendom2filarkiv.db"
-OUTPUT_PDF = r"C:\Users\az72987\Desktop\MERGED_81792653.pdf"
-FILARKIV_ID = ## indsæt her
+OUTPUT_PDF = r"C:\Users\az72987\Desktop\17107-381431-0.pdf"
+FILARKIV_ID = "357BBD25-8243-49EA-521E-08D9E4A36BA7"
 
 Image.MAX_IMAGE_PIXELS = None
 ImageFile.LOAD_TRUNCATED_IMAGES = True
