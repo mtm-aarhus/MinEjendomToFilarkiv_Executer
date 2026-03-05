@@ -34,6 +34,8 @@ CaseNumber = "3189-06"
 CaseTitle = "Opførelse af enfamiliehus med integreret carport"
 IgnoreCase = 0
 FilePath = "\\\\adm.aarhuskommune.dk\\MTM\\Byggesag\\Byggesag_2016_202X\\2017\\8\\975201\\3189-06\\9438560b-759e-48a5-8dde-65a757c42868.pdf"
+
+
 securityClassificationLevel = 0
 
 # ------------------------------------------------
