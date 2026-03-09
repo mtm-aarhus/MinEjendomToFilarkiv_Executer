@@ -68,6 +68,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
             SET FilArkivDocumentId = ?,
                 FilArkivFileId = ?,
                 UploadedAt = ?
+                
             WHERE Id = ?
         """, (
             FilarkivDocumentId,
@@ -212,7 +213,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
         return True, Filarkiv_DocumentID, FileID, DocumentDate
 
 
-    def is_document_uploaded(FilarkivURL,FilarkivCaseId, FileName, Filarkiv_access_token):
+    def is_document_uploaded(FilarkivURL, FilarkivCaseId, DocumentId, Filarkiv_access_token):
 
         url = f"{FilarkivURL}/Files?caseId={FilarkivCaseId}&orderBy=documentDate&noPaging=true&skipTotalCount=false&pageSize=500"
 
@@ -226,19 +227,19 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
 
             files = response.json()
 
-            print(f"Looking for: {FileName}")
+            print(f"Looking for DocumentId in fileReference: {DocumentId}")
 
             for file in files:
-                api_filename = file.get("fileName", "")
-                print(f"- {api_filename}")
+                file_reference = file.get("fileReference", "")
+                print(f"- {file_reference}")
 
-                # Remove extension from API filename
-                api_name_without_ext = os.path.splitext(api_filename)[0].strip().lower()
+                # Check if the DocumentId exists inside the reference string
+                if f"-{DocumentId}-" in file_reference:
 
-                if api_name_without_ext == FileName:
                     print("\n✅ Match found:")
                     print(json.dumps(file, indent=4))
-                    return True, file.get("documentId"), file.get("id"),file.get("createdAt")
+
+                    return True, file.get("documentId"), file.get("id"), file.get("createdAt")
 
             print("\n❌ No match found.")
             return False, None, None, None
@@ -253,7 +254,6 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
     print(f"File extension er: {FileExtension}")
 
     CanDocumentBeConverted = False
-    conversionPossible = False
 
     DocumentNumber = int(FileName.split("-")[-1])
     print(DocumentNumber)  
@@ -284,7 +284,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
     IsdocumentUploaded, filarkiv_document_id, filarkiv_file_id, created_at_from_api = is_document_uploaded(
         FilarkivURL,
         FilArkivCaseId,
-        FileName,
+        DocumentId,
         Filarkiv_access_token
     )
 
@@ -322,7 +322,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
             success = True   # Important: treat as success
             uploaded_at = datetime.fromisoformat(created_at_from_api.split(".")[0]).strftime("%Y-%m-%d %H:%M:%S")
 
-        # ✅ Update database ONLY if success
+        #  Update database ONLY if success
         if success and filarkiv_document_id and filarkiv_file_id:
 
 
