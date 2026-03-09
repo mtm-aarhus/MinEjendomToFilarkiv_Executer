@@ -52,6 +52,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
     CaseTitle = queue.get("CaseTitle")
     IgnoreCase = queue.get("IgnoreCase")
     FilePath = queue.get("FilePath")
+    DocumentDate = queue.get("DocumentDate")
     securityClassificationLevel = queue.get("securityClassificationLevel")
 
 
@@ -82,10 +83,9 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
     # ------ Create document, create file and upload document-----------------------
 
 
-    def upload_to_filarkiv_NoneSensitive(FilarkivURL, FilarkivCaseID, Filarkiv_access_token, title, file_path, DocumentType, orchestrator_connection,DocumentId,FileName,DocumentNumber,Documenttype):
+    def upload_to_filarkiv_NoneSensitive(FilarkivURL, FilarkivCaseID, Filarkiv_access_token, DocumentDate, title, file_path, DocumentType, orchestrator_connection,DocumentId,FileName,DocumentNumber,Documenttype):
         Filarkiv_DocumentID = None  # Ensure it is initialized
 
-        DocumentDate = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         data = {
             "caseId": FilarkivCaseID,
             "securityClassificationLevel": 0,
@@ -145,13 +145,12 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
                     response = requests.delete(url, headers={"Authorization": f"Bearer {Filarkiv_access_token}", "Content-Type": "application/json"}, data=json.dumps(data))
                     #orchestrator_connection.log_info(f"Document deletion status code: {response.status_code}")
                     return False
-        return True, Filarkiv_DocumentID, FileID, DocumentDate
+        return True, Filarkiv_DocumentID, FileID
 
 
-    def upload_to_filarkiv_Sensitive(FilarkivURL, FilarkivCaseID, Filarkiv_access_token, title, file_path, DocumentType, orchestrator_connection,DocumentId,FileName,DocumentNumber,Documenttype):
+    def upload_to_filarkiv_Sensitive(FilarkivURL, FilarkivCaseID, Filarkiv_access_token, DocumentDate, title, file_path, DocumentType, orchestrator_connection,DocumentId,FileName,DocumentNumber,Documenttype):
         Filarkiv_DocumentID = None  # Ensure it is initialized
 
-        DocumentDate = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         data = {
             "caseId": FilarkivCaseID,
             "securityClassificationLevel": 1,
@@ -210,7 +209,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
                     response = requests.delete(url, headers={"Authorization": f"Bearer {Filarkiv_access_token}", "Content-Type": "application/json"}, data=json.dumps(data))
                     #orchestrator_connection.log_info(f"Document deletion status code: {response.status_code}")
                     return False
-        return True, Filarkiv_DocumentID, FileID, DocumentDate
+        return True, Filarkiv_DocumentID, FileID
 
 
     def is_document_uploaded(FilarkivURL, FilarkivCaseId, DocumentId, Filarkiv_access_token):
@@ -291,7 +290,6 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
     print(f"IsdocumentUploaded is: {IsdocumentUploaded}")
 
     success = False
-    document_date = None
 
     if CanDocumentBeConverted:
 
@@ -299,8 +297,8 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
 
             if securityClassificationLevel == 1:
                 print("Document is sensitive")
-                success, filarkiv_document_id, filarkiv_file_id, document_date = upload_to_filarkiv_Sensitive(
-                    FilarkivURL, FilArkivCaseId, Filarkiv_access_token,
+                success, filarkiv_document_id, filarkiv_file_id = upload_to_filarkiv_Sensitive(
+                    FilarkivURL, FilArkivCaseId, Filarkiv_access_token,DocumentDate,
                     DocumentTitle, FilePath,
                     FileExtension,
                     orchestrator_connection,
@@ -308,8 +306,8 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
                 )
             else:
                 print("Document is not sensitive")
-                success, filarkiv_document_id, filarkiv_file_id, document_date = upload_to_filarkiv_NoneSensitive(
-                    FilarkivURL, FilArkivCaseId, Filarkiv_access_token,
+                success, filarkiv_document_id, filarkiv_file_id = upload_to_filarkiv_NoneSensitive(
+                    FilarkivURL, FilArkivCaseId, Filarkiv_access_token,DocumentDate,
                     DocumentTitle, FilePath,
                     FileExtension,
                     orchestrator_connection,
