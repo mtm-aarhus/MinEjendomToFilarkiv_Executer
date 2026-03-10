@@ -247,6 +247,61 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
             print(f"API request failed: {e}")
             return False, None, None, None
 
+    def are_all_case_documents_uploaded(SQLITE_PATH, CaseId):
+        conn = sqlite3.connect(SQLITE_PATH)
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM MinEjendom_Documents
+            WHERE CaseId = ?
+            AND FilArkivFileId IS NULL
+        """, (CaseId,))
+
+        remaining = cur.fetchone()[0]
+
+        conn.close()
+
+        return remaining == 0
+
+    def add_case_to_queue(orchestrator_connection, CaseId, CaseNumber, CaseTitle, FilArkivCaseId):
+
+        queue_items = []
+
+        row_dict = {
+            "CaseId": CaseId,
+            "CaseNumber": CaseNumber,
+            "CaseTitle": CaseTitle,
+            "FilArkivCaseId": FilArkivCaseId
+        }
+
+        queue_items.append({
+            "Reference": str(CaseId),
+            "SpecificContent": row_dict
+        })
+
+        references = tuple(item["Reference"] for item in queue_items)
+        data = tuple(json.dumps(item["SpecificContent"]) for item in queue_items)
+
+        queue_name = "MinEjendomToFilarkiv_BasicData"
+
+        try:
+            orchestrator_connection.bulk_create_queue_elements(
+                queue_name,
+                references,
+                data,
+                created_by="MinEjendomToFilarkiv_Executer"
+            )
+
+            orchestrator_connection.log_info(
+                f"Successfully added Case {CaseId} to queue {queue_name}"
+            )
+
+        except Exception as e:
+            orchestrator_connection.log_error(
+                f"Failed to add case to queue: {str(e)}"
+            )
+
 
     # -------------------- Main workflow ----------
     print("Henter Documentet")
@@ -333,6 +388,26 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
             )
 
             print("SQLite updated successfully.")
+
+            # ---- Check if case is now fully uploaded ----
+            case_complete = are_all_case_documents_uploaded(SQLITE_PATH, CaseId)
+
+            if case_complete:
+
+                orchestrator_connection.log_info(
+                    f"All documents for CaseId {CaseId} are now uploaded."
+                )
+
+                add_case_to_queue(
+                    orchestrator_connection,
+                    CaseId,
+                    CaseNumber,
+                    CaseTitle,
+                    FilArkivCaseId
+                )
+
+            else:
+                print(f"Case {CaseId} still has remaining documents.")
 
         else:
             print("Upload failed — database NOT updated.")
