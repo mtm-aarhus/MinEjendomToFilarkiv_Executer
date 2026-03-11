@@ -309,8 +309,15 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
 
     CanDocumentBeConverted = False
 
-    DocumentNumber = int(FileName.split("-")[-1])
-    print(DocumentNumber)  
+    parts = FileName.split("-")
+
+    DocumentNumber = 0
+    if len(parts) > 1:
+        match = re.search(r"\d+", parts[1])
+        if match:
+            DocumentNumber = int(match.group())
+
+    orchestrator_connection.log_info(f"DocumentNumber:{DocumentNumber}")
     Documenttype = 1
 
     # ---------------- Henter Documentet ----------------------
