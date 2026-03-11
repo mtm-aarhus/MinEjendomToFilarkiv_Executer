@@ -229,7 +229,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
             print(f"Looking for DocumentId in fileReference: {DocumentId}")
 
             for file in files:
-                file_reference = file.get("fileReference", "")
+                file_reference = file.get("fileReference") or ""
                 print(f"- {file_reference}")
 
                 # Check if the DocumentId exists inside the reference string
