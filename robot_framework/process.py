@@ -80,6 +80,24 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
 
         conn.commit()
         conn.close()
+    
+    def update_sqlite_case_not_found(SQLITE_PATH, DocumentId, note):
+        conn = sqlite3.connect(SQLITE_PATH)
+        cur = conn.cursor()
+
+        cur.execute("""
+            UPDATE MinEjendom_Documents
+            SET Note = ?
+            WHERE Id = ?
+        """, (
+            note,
+            DocumentId
+        ))
+
+        conn.commit()
+        conn.close()
+        
+    
     # ------ Create document, create file and upload document-----------------------
 
 
@@ -101,10 +119,31 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
             #orchestrator_connection.log_info(f"Anvender følgende Filarkiv_DocumentID: {Filarkiv_DocumentID}")
         else:
             orchestrator_connection.log_info(f"Failed to create document. Response: {response.text}")
+            try:
+                error_json = response.json()
+
+                validation_errors = error_json.get("errors", {}).get("validation", [])
+
+                case_not_found = any(
+                    "Related resource Case with identifier" in err and "not found" in err
+                    for err in validation_errors
+                )
+
+                if case_not_found:
+                    orchestrator_connection.log_info(
+                        f"Case {FilarkivCaseID} does not exist in Filarkiv."
+                    )
+                    return "CASE_NOT_FOUND", None, None
+
+            except Exception:
+                pass
+
+            # If it is NOT the case-not-found error → fail robot
+            raise Exception(f"Filarkiv document creation failed: {response.text}")
 
         if Filarkiv_DocumentID is None:
             #orchestrator_connection.log_info("Fejl: Filarkiv_DocumentID blev ikke genereret. Afbryder processen.")
-            return False
+            return False, None, None
         
         extension = f".{DocumentType}"
         mime_type = {
@@ -122,7 +161,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
             #orchestrator_connection.log_info(f"FileID: {FileID}")
         else:
             #orchestrator_connection.log_info(f"Failed to create file metadata. {response.text}")
-            return False
+            return False, None, None
         
         url = f"https://core.filarkiv.dk/api/v1/FileIO/Upload/{FileID}"
         if not os.path.exists(file_path):
@@ -166,10 +205,31 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
             #orchestrator_connection.log_info(f"Anvender følgende Filarkiv_DocumentID: {Filarkiv_DocumentID}")
         else:
             orchestrator_connection.log_info(f"Failed to create document. Response: {response.text}")
+            try:
+                error_json = response.json()
+
+                validation_errors = error_json.get("errors", {}).get("validation", [])
+
+                case_not_found = any(
+                    "Related resource Case with identifier" in err and "not found" in err
+                    for err in validation_errors
+                )
+
+                if case_not_found:
+                    orchestrator_connection.log_info(
+                        f"Case {FilarkivCaseID} does not exist in Filarkiv."
+                    )
+                    return "CASE_NOT_FOUND", None, None
+
+            except Exception:
+                pass
+
+            # If it is NOT the case-not-found error → fail robot
+            raise Exception(f"Filarkiv document creation failed: {response.text}")
 
         if Filarkiv_DocumentID is None:
             #orchestrator_connection.log_info("Fejl: Filarkiv_DocumentID blev ikke genereret. Afbryder processen.")
-            return False
+            return False, None, None
         
         extension = f".{DocumentType}"
         mime_type = {
@@ -186,7 +246,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
             #orchestrator_connection.log_info(f"FileID: {FileID}")
         else:
             #orchestrator_connection.log_info(f"Failed to create file metadata. {response.text}")
-            return False
+            return False, None, None
         
         url = f"https://core.filarkiv.dk/api/v1/FileIO/Upload/{FileID}"
         if not os.path.exists(file_path):
@@ -316,6 +376,9 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
         match = re.search(r"\d+", parts[1])
         if match:
             DocumentNumber = int(match.group())
+    # Reset if above 500
+    if DocumentNumber > 500:
+        DocumentNumber = 0
 
     orchestrator_connection.log_info(f"DocumentNumber:{DocumentNumber}")
     Documenttype = 1
@@ -359,8 +422,8 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
 
             if securityClassificationLevel == 1:
                 print("Document is sensitive")
-                success, filarkiv_document_id, filarkiv_file_id = upload_to_filarkiv_Sensitive(
-                    FilarkivURL, FilArkivCaseId, Filarkiv_access_token,DocumentDate,
+                result = upload_to_filarkiv_Sensitive(
+                    FilarkivURL, FilArkivCaseId, Filarkiv_access_token, DocumentDate,
                     DocumentTitle, FilePath,
                     FileExtension,
                     orchestrator_connection,
@@ -368,13 +431,31 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
                 )
             else:
                 print("Document is not sensitive")
-                success, filarkiv_document_id, filarkiv_file_id = upload_to_filarkiv_NoneSensitive(
-                    FilarkivURL, FilArkivCaseId, Filarkiv_access_token,DocumentDate,
+                result = upload_to_filarkiv_NoneSensitive(
+                    FilarkivURL, FilArkivCaseId, Filarkiv_access_token, DocumentDate,
                     DocumentTitle, FilePath,
                     FileExtension,
                     orchestrator_connection,
                     DocumentId, FileName, DocumentNumber, Documenttype
                 )
+
+            # Handle case-not-found scenario
+            if result[0] == "CASE_NOT_FOUND":
+                orchestrator_connection.log_info(
+                    f"Case {FilArkivCaseId} does not exist in Filarkiv."
+                )
+
+                update_sqlite_case_not_found(
+                    SQLITE_PATH,
+                    DocumentId,
+                    "Sagen findes ikke i Filarkiv"
+                )
+
+                print("SQLite updated with case-not-found note.")
+                return
+
+            # Normal unpacking
+            success, filarkiv_document_id, filarkiv_file_id = result
             uploaded_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         else:
@@ -417,7 +498,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
                 print(f"Case {CaseId} still has remaining documents.")
 
         else:
-            print("Upload failed — database NOT updated.")
+            print("Upload failed.")
 
     else:
         print("Document type not supported — nothing done.")
