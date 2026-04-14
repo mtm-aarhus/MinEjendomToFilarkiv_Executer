@@ -30,7 +30,7 @@ def add_basic_data_api(case_id, basic_data_type, basic_data_id, existing_basicda
     key = normalize_basicdata_key(basic_data_type, basic_data_id)
 
     if key in existing_basicdata:
-        print(f"   Skipping existing basicdata {key}")
+        print(f"Skipping existing basicdata {key}")
         return
 
     data = {
