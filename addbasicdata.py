@@ -231,7 +231,3 @@ def mark_basicdata_processed(cur, case_id):
 # -----------------------------
 # RUN SCRIPT
 # -----------------------------
-
-if __name__ == "__main__":
-
-    add_basic_data_to_cases(SQLITE_PATH)

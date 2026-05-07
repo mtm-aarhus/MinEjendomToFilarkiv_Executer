@@ -118,7 +118,3 @@ def main():
 
     print("\n✅ DONE")
     print(f"Final merged PDF created at:\n{OUTPUT_PDF}")
-
-
-if __name__ == "__main__":
-    main()
