@@ -26,6 +26,12 @@ def handle_error(message: str, error: Exception, queue_element: QueueElement | N
         orchestrator_connection: A connection to OpenOrchestrator.
     """
     error_msg = f"{message}: {repr(error)}\n\nTrace:\n{traceback.format_exc()}"
+
+    # The Queues.message column is varchar(1000). Keep the head (what failed)
+    # and the tail (most specific part of the trace) so the DB write never overflows.
+    if len(error_msg) > 999:
+        error_msg = error_msg[:485] + "\n... [truncated] ...\n" + error_msg[-485:]
+
     error_email = orchestrator_connection.get_constant(config.ERROR_EMAIL).value
 
     orchestrator_connection.log_error(error_msg)
