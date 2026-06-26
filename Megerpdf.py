@@ -9,8 +9,9 @@ import tempfile
 # ==============================
 
 SQLITE_PATH = r"C:\Users\az72987\Desktop\minejendom2filarkiv.db"
-OUTPUT_PDF = r"C:\Users\az72987\Desktop\17107-381431-0.pdf"
-FILARKIV_ID = "62098011-349A-4DE6-3E48-08DA397705DC"
+OUTPUT_PDF = r"C:\Users\az72987\Desktop\foto.pdf"
+FILARKIV_ID = "9ae6d757-54d5-4dbe-ac94-08d9fb969588"
+
 
 Image.MAX_IMAGE_PIXELS = None
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -60,7 +61,7 @@ def main():
            Note,
            UploadedAt
     FROM MinEjendom_Documents
-    WHERE FilArkivDocumentId LIKE ?
+    WHERE FilarkivFileID LIKE ?
     ORDER BY PageNumber, Id;
     """
 
@@ -118,3 +119,7 @@ def main():
 
     print("\n✅ DONE")
     print(f"Final merged PDF created at:\n{OUTPUT_PDF}")
+
+
+if __name__ == "__main__":
+    main()

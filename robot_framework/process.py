@@ -14,6 +14,7 @@ import requests
 import uuid
 import re
 from GetFilarkivAcessToken import GetFilarkivToken
+from robot_framework.exceptions import BusinessError
 
 
 # pylint: disable-next=unused-argument
@@ -183,7 +184,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
                     data = {"id": Filarkiv_DocumentID}
                     response = requests.delete(url, headers={"Authorization": f"Bearer {Filarkiv_access_token}", "Content-Type": "application/json"}, data=json.dumps(data))
                     #orchestrator_connection.log_info(f"Document deletion status code: {response.status_code}")
-                    return False
+                    raise BusinessError(f"Upload failed for DocumentId {DocumentId}: {response.text[:300]}")
         return True, Filarkiv_DocumentID, FileID
 
 
@@ -268,7 +269,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
                     data = {"id": Filarkiv_DocumentID}
                     response = requests.delete(url, headers={"Authorization": f"Bearer {Filarkiv_access_token}", "Content-Type": "application/json"}, data=json.dumps(data))
                     #orchestrator_connection.log_info(f"Document deletion status code: {response.status_code}")
-                    return False
+                    raise BusinessError(f"Upload failed for DocumentId {DocumentId}: {response.text[:300]}")
         return True, Filarkiv_DocumentID, FileID
 
 
